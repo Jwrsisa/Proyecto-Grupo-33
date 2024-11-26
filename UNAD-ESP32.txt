@@ -1,0 +1,444 @@
+#include <Wire.h>
+
+// Librerias
+
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x26, 16, 2);
+
+#include <DHT.h>
+int SENSOR_DHT_PIN = 15;
+DHT dht(SENSOR_DHT_PIN, DHT11);
+
+// Variables
+#define SENSOR_HUMEDAD_PIN 35 // Sensor de humedad tierra
+#define SENSOR_NIVEL_PIN 4    // Sensor de agua vertical
+#define RELAY_PIN 23          // Relay
+
+int SENSOR_LUZ_PIN = 33;
+int BUZZER_PIN = 32;
+int LAMPARA_PIN = 14;
+int LEDV = 27;
+int LEDR = 26;
+const int BOTON_SELECT_PIN = 18;
+const int BOTON_UP_PIN = 19;
+const int BOTON_DOWN_PIN = 5;
+const int BOTON_HOME_PIN = 13;
+int humedadDHT, temperatura;
+int humedadSuelo;
+int fotoresistor;
+int nivelAgua;
+int btnSelect;
+// int btnUp;
+// int btnDown;
+int btnHome;
+
+// Variables para los valores modificables
+int humedadedit = 30;
+int temperaturaedit = 35;
+int humedadHaedit = 30;
+bool luzmanual = false;
+String estadoluz = "Auto";
+bool salirRA;
+bool salirRM;
+
+String menuItems[] = {"Riego Auto", "Editar Humedad", "Editar Temp", "Editar HA", "Bombilla", "Riego Manual"};
+int menuSize = sizeof(menuItems) / sizeof(menuItems[0]);
+int currentMenuItem = 0;
+int selectedItem = -1;
+////////////////////////////////////////////////////////////////////////////////SETUP - SETUP////////////////////////////////////////////////////////////////////////////////////////////////////
+void setup()
+{
+  Wire.begin(21, 22);
+  Wire.setClock(10000);
+  lcd.init();          // Inicializamos el LCD
+  lcd.backlight();     // Activamos la luz de fondo
+  lcd.clear();         // Limpiamos lo que haya en pantalla
+  lcd.setCursor(0, 0); // Iniciamos el cursor en el punto 0,0
+
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(BOTON_SELECT_PIN, INPUT_PULLUP);
+  pinMode(BOTON_UP_PIN, INPUT_PULLUP);
+  pinMode(BOTON_DOWN_PIN, INPUT_PULLUP);
+  pinMode(BOTON_HOME_PIN, INPUT_PULLUP);
+  pinMode(SENSOR_HUMEDAD_PIN, INPUT); // Sensor de humedad
+  pinMode(SENSOR_LUZ_PIN, INPUT);
+  pinMode(SENSOR_NIVEL_PIN, INPUT_PULLUP); // Sensor de agua vertical
+  pinMode(RELAY_PIN, OUTPUT);
+  pinMode(LAMPARA_PIN, OUTPUT);
+  pinMode(LEDV, OUTPUT);
+  pinMode(LEDR, OUTPUT);
+
+  digitalWrite(RELAY_PIN, HIGH);
+  displayMenu();
+}
+//////////////////////////////////////////////////////////////////////////////////LOOP - LOOP/////////////////////////////////////////////////////////////////////////////////////
+void loop()
+{
+
+  // condicional para salir del caso "0"
+  // if (salirRA == true){
+  // displayMenu();
+  // delay(200);
+  //}
+
+  if (salirRM == true)
+  {
+    displayMenu();
+    delay(200);
+  }
+
+  // Navegacion con los botones
+  if (digitalRead(BOTON_SELECT_PIN) == 0)
+  {
+    delay(50); // Debounce
+    if (selectedItem == -1)
+    {
+      selectedItem = currentMenuItem;
+    }
+    else
+    {
+      selectedItem = -1;
+    }
+    displayMenu();
+    delay(200);
+  }
+
+  if (digitalRead(BOTON_UP_PIN) == 0)
+  {
+    delay(50); // Debounce
+    if (selectedItem == -1)
+    {
+      currentMenuItem = (currentMenuItem - 1 + menuSize) % menuSize;
+    }
+    else
+    {
+      updateValue(1);
+    }
+    displayMenu();
+    delay(200);
+  }
+
+  if (digitalRead(BOTON_DOWN_PIN) == 0)
+  {
+    delay(50); // Debounce
+    if (selectedItem == -1)
+    {
+      currentMenuItem = (currentMenuItem + 1) % menuSize;
+    }
+    else
+    {
+      updateValue(-1);
+    }
+    displayMenu();
+    delay(200);
+  }
+
+  // DHT
+  humedadDHT = dht.readHumidity();
+  temperatura = dht.readTemperature();
+  // SENSOR DE SUELO
+  humedadSuelo = map(analogRead(SENSOR_HUMEDAD_PIN), 4095, 1650, 0, 100);
+  // SENSOR DE LUZ
+  fotoresistor = map(analogRead(SENSOR_LUZ_PIN), 4095, 0, 0, 100);
+  // SENSOR DE AGUA VERTICAL
+  nivelAgua = digitalRead(SENSOR_NIVEL_PIN);
+  // BOTONES
+  // btnHome = digitalRead(BOTON_HOME_PIN);
+  // btnSelect = digitalRead(BOTON_SELECT_PIN);
+}
+
+///////////////////////////////////////////////////////// DISPLAY MENU -DISPLAY MENU /////////////////////////////////////////////////////////////////////////////////////////
+
+void displayMenu()
+{
+  salirRA = false;
+  salirRM = false;
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(menuItems[currentMenuItem]);
+  Serial.println(menuItems[currentMenuItem]); //////////////////////////
+  if (selectedItem != -1)
+  {
+    lcd.setCursor(0, 1);
+
+    switch (selectedItem)
+    {
+
+      // VALORES PERSONALIZADOS
+    case 0:
+      while (salirRA == false)
+      {
+        loop();
+        // int humedadsuelomap = map(humedadsuelo, 0, 876, 0, 100);
+        // int fotoresistormap = map(fotoresistor, 6, 679, 0, 100);
+        // int temperaturamap = map(temperatura, 0, 1023, -49, 449);
+        // int nivelmap = map(nivel, 1023, 0, 0, 100);
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("HS ");
+        lcd.print(humedadSuelo);
+        lcd.print("%");
+        Serial.print("HS ");
+        Serial.print(humedadSuelo);
+        Serial.print("%"); //////////////////////////
+        lcd.setCursor(0, 1);
+        lcd.print("LZ ");
+        lcd.print(fotoresistor);
+        lcd.print("%");
+        Serial.print(" LZ ");
+        Serial.print(fotoresistor);
+        Serial.println("%"); //////////////////////////
+        lcd.setCursor(8, 0);
+        lcd.print("TM ");
+        lcd.print(temperatura);
+        lcd.print("C");
+        Serial.print("TM ");
+        Serial.print(temperatura);
+        Serial.print("C"); //////////////////////////
+        lcd.setCursor(8, 1);
+        lcd.print("HA ");
+        lcd.print(humedadDHT);
+        lcd.print("%");
+        Serial.print(" HA ");
+        Serial.print(humedadDHT);
+        Serial.println("%");                     //////////////////////////
+        Serial.println("/////////////////////"); // Serial.print(btnHome);Serial.print(btnSelect);
+        delay(1000);
+
+        // CONDICIONAL PARA EL RIEGO AUTOMATIZADO
+        if ((humedadSuelo < humedadedit) && (nivelAgua == 1))
+        {
+          lcd.clear();
+          digitalWrite(RELAY_PIN, LOW);
+          lcd.setCursor(0, 0);
+          lcd.print("SUMINISTRANDO");
+          Serial.print("SUMINISTRANDO"); //////////////////////////
+          lcd.setCursor(0, 1);
+          lcd.print("AGUA");
+          Serial.println(" AGUA");                 //////////////////////////
+          Serial.println("/////////////////////"); //////////////////////////
+          delay(5000);
+          digitalWrite(RELAY_PIN, HIGH);
+          lcd.clear();
+        }
+        else
+        {
+          digitalWrite(RELAY_PIN, HIGH);
+        }
+
+        if ((humedadSuelo < humedadedit) && (nivelAgua == 0))
+        {
+          lcd.clear();
+          digitalWrite(RELAY_PIN, HIGH);
+          lcd.setCursor(0, 0);
+          lcd.print("EL TANQUE NO");
+          Serial.print("EL TANQUE NO"); //////////////////////////
+          lcd.setCursor(0, 1);
+          lcd.print("TIENE AGUA");
+          Serial.println(" TIENE AGUA");           //////////////////////////
+          Serial.println("/////////////////////"); //////////////////////////
+          delay(5000);
+          lcd.clear();
+        }
+        else
+        {
+        }
+
+        // CONDICIONAL PARA LA LAMPARA
+
+        if ((fotoresistor <= 40) && (luzmanual == false))
+        {
+          digitalWrite(LAMPARA_PIN, HIGH);
+        }
+        if ((fotoresistor > 40) && (luzmanual == false))
+        {
+          digitalWrite(LAMPARA_PIN, LOW);
+        }
+
+        if (digitalRead(BOTON_UP_PIN) == LOW)
+        {
+          digitalWrite(LAMPARA_PIN, HIGH);
+        }
+
+        if (digitalRead(BOTON_DOWN_PIN) == LOW)
+        {
+          digitalWrite(LAMPARA_PIN, LOW);
+        }
+
+        // CONDICIONAL DE LA TEMPERATURA
+
+        if (temperatura > temperaturaedit)
+        {
+          lcd.clear();
+          lcd.setCursor(0, 0);
+          lcd.print("LA TEMPERATURA");
+          Serial.print("LA TEMPERATURA"); //////////////////
+          lcd.setCursor(0, 1);
+          lcd.print("ES MUY ALTA");
+          Serial.println(" ES MUY ALTA");
+          Serial.println("/////////////////////"); //////////////////////////
+          delay(5000);
+          lcd.clear();
+        }
+        else
+        {
+        }
+
+        // CONDICIONAL LEDS
+
+        if ((temperatura < temperaturaedit) && (nivelAgua == 1))
+        {
+          digitalWrite(LEDR, LOW);  // rojo
+          digitalWrite(LEDV, HIGH); // verde
+          noTone(BUZZER_PIN);
+        }
+        else
+        {
+          digitalWrite(LEDR, HIGH);
+          digitalWrite(LEDV, LOW);
+          tone(BUZZER_PIN, 100);
+        }
+
+        if (digitalRead(BOTON_HOME_PIN) == LOW)
+        {
+          digitalWrite(LEDR, LOW);
+          digitalWrite(LEDV, LOW);
+          digitalWrite(LAMPARA_PIN, LOW);
+          noTone(BUZZER_PIN);
+          // digitalWrite(9,LOW); BOMBILLO NARANJA
+          salirRA = true;
+          selectedItem = -1;
+          delay(2000);
+        }
+      }
+      break;
+    case 1:
+      lcd.print("Humedad: " + String(humedadedit) + "%");
+      Serial.println("Humedad: " + String(humedadedit) + "%"); //////////////////////////
+      break;
+    case 2:
+      lcd.print("Temp: " + String(temperaturaedit) + "C");
+      Serial.println("Temp: " + String(temperaturaedit) + "C"); //////////////////////////
+      break;
+    case 3:
+
+      lcd.print("Humedad Amb.: " + String(humedadHaedit) + "%");
+      Serial.println("Humedad Amb.: " + String(humedadHaedit) + "%"); //////////////////////////
+      break;
+    case 4:
+
+      lcd.print("Lampara: " + String(estadoluz));
+      Serial.println("Lampara: " + String(estadoluz)); ////////////
+      if (digitalRead(BOTON_UP_PIN) == LOW)
+      {
+        estadoluz = "Auto";
+        luzmanual = false;
+        lcd.clear();
+        lcd.print("Auto Activado..");
+        Serial.println("Auto Activado.."); /////////////////
+        delay(2000);
+        loop();
+      }
+
+      if (digitalRead(BOTON_DOWN_PIN) == LOW)
+      {
+        estadoluz = "Manual";
+        luzmanual = true;
+        lcd.clear();
+        lcd.print("Manual activado");
+        Serial.println("Manual activado"); ////////////////
+        delay(2000);
+        loop();
+      }
+
+      break;
+
+    case 5:
+
+      while (salirRM == false)
+      {
+        loop();
+
+        lcd.clear();
+        lcd.setCursor(0, 0);
+        lcd.print("HumedadSuelo ");
+        Serial.print("HumedadSuelo "); ///////////////
+        lcd.print(humedadSuelo);
+        Serial.print(humedadSuelo); ///////////////
+        lcd.print("%");
+        Serial.println("%"); /////////
+        lcd.setCursor(0, 1);
+        lcd.print("Nivel Tanque ");
+        Serial.print("Nivel Tanque "); /////////
+        lcd.print(nivelAgua);
+        Serial.print(nivelAgua); /////////
+        lcd.print("%");
+        Serial.println("%");                     ///////////
+        Serial.println("/////////////////////"); //////////////////////////
+        delay(1000);
+
+        // int nivelmap1 = map(nivel, 1023, 0, 0, 100);
+        // lcd.print("Bomba: " + String(nivelmap1) + "%");
+
+        if ((digitalRead(BOTON_HOME_PIN) == LOW) && (nivelAgua == 1))
+        {
+
+          lcd.clear();
+          digitalWrite(RELAY_PIN, LOW);
+          lcd.setCursor(0, 0);
+          lcd.print("SUMINISTRANDO");
+          Serial.print("SUMINISTRANDO"); //////////////////////////
+          lcd.setCursor(0, 1);
+          lcd.print("AGUA");
+          Serial.println(" AGUA");                 //////////////////////////
+          Serial.println("/////////////////////"); //////////////////////////
+          delay(5000);
+          digitalWrite(RELAY_PIN, HIGH);
+          lcd.clear();
+        }
+        if ((digitalRead(BOTON_HOME_PIN) == LOW) && (nivelAgua == 0))
+        {
+          lcd.clear();
+          digitalWrite(RELAY_PIN, HIGH);
+          lcd.setCursor(0, 0);
+          lcd.print("EL TANQUE NO");
+          Serial.print("EL TANQUE NO"); //////////////////////////
+          lcd.setCursor(0, 1);
+          lcd.print("TIENE AGUA");
+          Serial.println(" TIENE AGUA");           //////////////////////////
+          Serial.println("/////////////////////"); //////////////////////////
+          delay(5000);
+          lcd.clear();
+        }
+        if (digitalRead(BOTON_SELECT_PIN) == LOW)
+        {
+          salirRM = true;
+          selectedItem = -1;
+          delay(2000);
+        }
+      }
+
+      break;
+    }
+  }
+}
+
+//////////////////////////////////////////////////////////// INTERVALOS DE MODIFICACION ////////////////////////////////////////////////////////
+
+void updateValue(int direction)
+{
+  switch (selectedItem)
+  {
+  case 1:
+    humedadedit = constrain(humedadedit + direction, 0, 100);
+    break;
+  case 2:
+    temperaturaedit = constrain(temperaturaedit + direction, -49, 125);
+    break;
+  case 3:
+    humedadHaedit = constrain(humedadHaedit + direction, 0, 100);
+    break;
+  }
+}
